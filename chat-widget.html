@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anura Connect - Epic Consultant Chat</title>
+  <style>
+    /* ============================================
+       ANURA CONNECT CHAT WIDGET
+       Embed this on any page via <script> or iframe
+       ============================================ */
+
+    :root {
+      --anura-primary: #1a3a2a;
+      --anura-primary-light: #2d5a3f;
+      --anura-accent: #4a9b6e;
+      --anura-accent-light: #6bc08e;
+      --anura-bg: #f7f9f8;
+      --anura-white: #ffffff;
+      --anura-text: #2c3e36;
+      --anura-text-light: #6b7d74;
+      --anura-border: #e0e8e4;
+      --anura-error: #c0392b;
+      --anura-warning: #e67e22;
+      --anura-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+      --anura-radius: 16px;
+      --anura-radius-sm: 10px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--anura-bg);
+      color: var(--anura-text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* --- Floating launcher button (for embedded use) --- */
+    #anura-chat-launcher {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--anura-primary);
+      border: none;
+      cursor: pointer;
+      box-shadow: var(--anura-shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, background 0.2s;
+      z-index: 9998;
+    }
+
+    #anura-chat-launcher:hover {
+      transform: scale(1.08);
+      background: var(--anura-primary-light);
+    }
+
+    #anura-chat-launcher svg {
+      width: 28px;
+      height: 28px;
+      fill: var(--anura-white);
+    }
+
+    /* --- Chat container --- */
+    #anura-chat-container {
+      position: fixed;
+      bottom: 100px;
+      right: 24px;
+      width: 420px;
+      max-width: calc(100vw - 32px);
+      height: 620px;
+      max-height: calc(100vh - 140px);
+      background: var(--anura-white);
+      border-radius: var(--anura-radius);
+      box-shadow: var(--anura-shadow);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 9999;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    #anura-chat-container.open {
+      display: flex;
+    }
+
+    /* For standalone page mode */
+    #anura-chat-container.standalone {
+      position: relative;
+      bottom: auto;
+      right: auto;
+      width: 480px;
+      height: 680px;
+      display: flex;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* --- Header --- */
+    .anura-header {
+      background: var(--anura-primary);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .anura-header-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--anura-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .anura-header-info {
+      flex: 1;
+    }
+
+    .anura-header-title {
+      color: var(--anura-white);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .anura-header-subtitle {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .anura-header-close {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      padding: 4px;
+      font-size: 20px;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+
+    .anura-header-close:hover {
+      color: var(--anura-white);
+    }
+
+    /* --- Messages area --- */
+    .anura-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+
+    .anura-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .anura-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .anura-messages::-webkit-scrollbar-thumb {
+      background: var(--anura-border);
+      border-radius: 3px;
+    }
+
+    /* --- Message bubbles --- */
+    .anura-msg {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: var(--anura-radius-sm);
+      font-size: 14px;
+      line-height: 1.5;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .anura-msg.bot {
+      background: var(--anura-bg);
+      color: var(--anura-text);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .anura-msg.user {
+      background: var(--anura-primary);
+      color: var(--anura-white);
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .anura-msg.system {
+      background: #fef3e2;
+      color: var(--anura-warning);
+      align-self: center;
+      text-align: center;
+      font-size: 13px;
+      border-radius: 8px;
+      max-width: 90%;
+    }
+
+    .anura-msg.error {
+      background: #fde8e6;
+      color: var(--anura-error);
+      align-self: center;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    /* --- Typing indicator --- */
+    .anura-typing {
+      display: flex;
+      gap: 4px;
+      padding: 12px 16px;
+      align-self: flex-start;
+      background: var(--anura-bg);
+      border-radius: var(--anura-radius-sm);
+      border-bottom-left-radius: 4px;
+    }
+
+    .anura-typing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--anura-text-light);
+      animation: typingBounce 1.4s infinite;
+    }
+
+    .anura-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .anura-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* --- Quick reply chips --- */
+    .anura-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 4px 0;
+      align-self: flex-start;
+      max-width: 90%;
+    }
+
+    .anura-chip {
+      background: var(--anura-white);
+      border: 1.5px solid var(--anura-accent);
+      color: var(--anura-accent);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .anura-chip:hover {
+      background: var(--anura-accent);
+      color: var(--anura-white);
+    }
+
+    /* --- Input area --- */
+    .anura-input-area {
+      padding: 12px 16px;
+      border-top: 1px solid var(--anura-border);
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      background: var(--anura-white);
+    }
+
+    .anura-input-area textarea {
+      flex: 1;
+      border: 1.5px solid var(--anura-border);
+      border-radius: var(--anura-radius-sm);
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 42px;
+      max-height: 100px;
+      line-height: 1.4;
+      outline: none;
+      transition: border-color 0.2s;
+      color: var(--anura-text);
+    }
+
+    .anura-input-area textarea:focus {
+      border-color: var(--anura-accent);
+    }
+
+    .anura-input-area textarea::placeholder {
+      color: var(--anura-text-light);
+    }
+
+    .anura-send-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--anura-primary);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, transform 0.1s;
+      flex-shrink: 0;
+    }
+
+    .anura-send-btn:hover {
+      background: var(--anura-primary-light);
+    }
+
+    .anura-send-btn:active {
+      transform: scale(0.95);
+    }
+
+    .anura-send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .anura-send-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: var(--anura-white);
+    }
+
+    /* --- Powered by footer --- */
+    .anura-footer {
+      text-align: center;
+      padding: 8px;
+      font-size: 11px;
+      color: var(--anura-text-light);
+      border-top: 1px solid var(--anura-border);
+      flex-shrink: 0;
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 480px) {
+      #anura-chat-container {
+        width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        bottom: 0;
+        right: 0;
+        border-radius: 0;
+      }
+
+      #anura-chat-launcher {
+        bottom: 16px;
+        right: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating launcher button -->
+  <button id="anura-chat-launcher" onclick="toggleChat()" aria-label="Open chat">
+    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/></svg>
+  </button>
+
+  <!-- Chat widget -->
+  <div id="anura-chat-container">
+    <div class="anura-header">
+      <div class="anura-header-avatar">🐸</div>
+      <div class="anura-header-info">
+        <div class="anura-header-title">Anura Connect</div>
+        <div class="anura-header-subtitle">Epic Consulting Talent Team</div>
+      </div>
+      <button class="anura-header-close" onclick="toggleChat()" aria-label="Close chat">&times;</button>
+    </div>
+
+    <div class="anura-messages" id="anura-messages"></div>
+
+    <div class="anura-input-area">
+      <textarea id="anura-input"
+                placeholder="Type your message..."
+                rows="1"
+                onkeydown="handleKeydown(event)"
+                oninput="autoResize(this)"></textarea>
+      <button class="anura-send-btn" id="anura-send" onclick="sendMessage()" aria-label="Send">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+
+    <div class="anura-footer">Powered by Anura Connect</div>
+  </div>
+
+  <script>
+    // ============================================
+    // CONFIGURATION - Update these for your setup
+    // ============================================
+    const CONFIG = {
+      // Your backend API endpoint (see server.js)
+      apiUrl: '/api/chat',
+
+      // Notification email
+      notifyEmail: 'hello@anuraconnect.com',
+
+      // Set to true if embedding as widget, false for standalone page
+      widgetMode: true,
+    };
+
+    // ============================================
+    // SYSTEM PROMPT - The brain of your agent
+    // ============================================
+    const SYSTEM_PROMPT = `You are a friendly, warm recruiting assistant for Anura Connect — a boutique Epic consulting firm based in Madison, WI. You help Epic-certified consultants explore opportunities with Anura Connect.
+
+Your job is to have a natural conversation with candidates to learn about them and what they're looking for. You are NOT a rigid form — you're a real conversational partner. Be warm, encouraging, and knowledgeable about the Epic ecosystem.
+
+## WHAT YOU NEED TO COLLECT (conversationally, not all at once):
+
+1. **Their name** — first and last
+2. **Contact info** — email address and phone number
+3. **Role type they're looking for** — Analyst, Project Manager (PM), Director, Team Lead, Principal Trainer, or other
+4. **Desired pay rate** — their take-home hourly rate expectation (W2 or 1099)
+5. **Availability** — when they can start, and if they're looking for something now or in the future
+6. **Epic certifications** — which Epic applications/modules they are certified in and can work in (e.g., Ambulatory, Beaker, Cadence, ClinDoc, Cogito, Cupid, EpicCare Inpatient, Grand Central, HIM, Healthy Planet, MyChart, OpTime, Orders, Radiant, Resolute PB, Resolute HB, Tapestry, Willow, etc.)
+7. **Experience highlights** — number of go-lives, years with Epic, any notable projects
+
+## CRITICAL DISQUALIFICATION RULE:
+
+If the candidate mentions they are a **Credentialed Trainer (CT)** or **Accredited Training Environment (ATE)** specialist, you MUST politely let them know:
+
+"Thank you so much for your interest in Anura Connect! At this time, we focus exclusively on partnering with Senior Epic-Certified Consultants and don't currently place Credentialed Trainers or ATE specialists. We really appreciate you reaching out, and if our scope expands in the future, we'd love to reconnect. Wishing you all the best in your search!"
+
+Then end the conversation gracefully. Do NOT continue collecting information after this point.
+
+## CONVERSATION GUIDELINES:
+
+- Start by warmly greeting them and asking what brings them to Anura Connect
+- Let the conversation flow naturally — don't ask all questions at once
+- Ask 1-2 questions at a time, then respond to what they share
+- Show genuine interest in their experience and goals
+- If they mention specific Epic modules, show you know what those are
+- Be encouraging about their experience
+- If they seem uncertain about rate, you can mention that Anura is known for transparent margins and competitive take-home rates
+- Don't be pushy — if they don't want to share something, that's okay
+- When you have enough info, summarize what you've learned and let them know someone from the team will be in touch
+
+## TONE:
+- Warm, friendly, professional but not stiff
+- Like talking to a knowledgeable colleague who genuinely wants to help
+- Use their first name once you know it
+- Brief and conversational — not long corporate paragraphs
+
+## IMPORTANT:
+- You represent Anura Connect, a boutique firm founded by former Epic, Bluetree, and Nordic leaders
+- Anura is known for: transparent rates, no overhead markups, more money in consultants' pockets, and treating people like people
+- You do NOT know about specific open positions — you're gathering info so the team can match them
+- Never make up information about pay rates, positions, or timelines
+- If asked something you don't know, say you'll have the team follow up on that`;
+
+    // ============================================
+    // CHAT STATE
+    // ============================================
+    let conversationHistory = [];
+    let candidateData = {
+      name: null,
+      email: null,
+      phone: null,
+      roleType: null,
+      payRate: null,
+      availability: null,
+      epicCertifications: [],
+      experience: null,
+      disqualified: false,
+      disqualifyReason: null,
+    };
+    let isProcessing = false;
+    let conversationComplete = false;
+
+    // ============================================
+    // UI FUNCTIONS
+    // ============================================
+
+    function toggleChat() {
+      const container = document.getElementById('anura-chat-container');
+      const launcher = document.getElementById('anura-chat-launcher');
+
+      if (container.classList.contains('open')) {
+        container.classList.remove('open');
+        launcher.style.display = 'flex';
+      } else {
+        container.classList.add('open');
+        launcher.style.display = 'none';
+
+        // Send initial greeting on first open
+        if (conversationHistory.length === 0) {
+          sendBotGreeting();
+        }
+      }
+    }
+
+    function addMessage(text, type = 'bot') {
+      const messagesEl = document.getElementById('anura-messages');
+      const msgEl = document.createElement('div');
+      msgEl.className = `anura-msg ${type}`;
+      msgEl.textContent = text;
+      messagesEl.appendChild(msgEl);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return msgEl;
+    }
+
+    function addChips(options) {
+      const messagesEl = document.getElementById('anura-messages');
+      const chipsEl = document.createElement('div');
+      chipsEl.className = 'anura-chips';
+
+      options.forEach(option => {
+        const chip = document.createElement('button');
+        chip.className = 'anura-chip';
+        chip.textContent = option;
+        chip.onclick = () => {
+          // Remove chips after selection
+          chipsEl.remove();
+          // Send as user message
+          document.getElementById('anura-input').value = option;
+          sendMessage();
+        };
+        chipsEl.appendChild(chip);
+      });
+
+      messagesEl.appendChild(chipsEl);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTyping() {
+      const messagesEl = document.getElementById('anura-messages');
+      const typingEl = document.createElement('div');
+      typingEl.className = 'anura-typing';
+      typingEl.id = 'anura-typing-indicator';
+      typingEl.innerHTML = `
+        <div class="anura-typing-dot"></div>
+        <div class="anura-typing-dot"></div>
+        <div class="anura-typing-dot"></div>
+      `;
+      messagesEl.appendChild(typingEl);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function hideTyping() {
+      const el = document.getElementById('anura-typing-indicator');
+      if (el) el.remove();
+    }
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+    }
+
+    function handleKeydown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    function setInputEnabled(enabled) {
+      const input = document.getElementById('anura-input');
+      const sendBtn = document.getElementById('anura-send');
+      input.disabled = !enabled;
+      sendBtn.disabled = !enabled;
+      if (enabled) input.focus();
+    }
+
+    // ============================================
+    // CONVERSATION LOGIC
+    // ============================================
+
+    async function sendBotGreeting() {
+      showTyping();
+
+      // Small delay to feel natural
+      await sleep(800);
+
+      hideTyping();
+
+      const greeting = "Hey there! Welcome to Anura Connect. I'm here to help learn a bit about you and what you're looking for in your next Epic consulting role. What brings you our way today?";
+
+      addMessage(greeting, 'bot');
+
+      // Add the greeting to conversation history
+      conversationHistory.push({
+        role: 'assistant',
+        content: greeting
+      });
+
+      // Show quick-start chips
+      addChips([
+        "Looking for a new role",
+        "Exploring opportunities",
+        "A friend referred me"
+      ]);
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('anura-input');
+      const text = input.value.trim();
+
+      if (!text || isProcessing || conversationComplete) return;
+
+      // Add user message to UI
+      addMessage(text, 'user');
+      input.value = '';
+      input.style.height = 'auto';
+
+      // Remove any existing chips
+      document.querySelectorAll('.anura-chips').forEach(el => el.remove());
+
+      // Add to conversation history
+      conversationHistory.push({
+        role: 'user',
+        content: text
+      });
+
+      // Process with AI
+      isProcessing = true;
+      setInputEnabled(false);
+      showTyping();
+
+      try {
+        const response = await callAI(conversationHistory);
+
+        hideTyping();
+
+        // Add bot response
+        addMessage(response.message, 'bot');
+
+        conversationHistory.push({
+          role: 'assistant',
+          content: response.message
+        });
+
+        // Check if data extraction returned anything
+        if (response.extractedData) {
+          Object.assign(candidateData, response.extractedData);
+        }
+
+        // Check if candidate was disqualified (CT/ATE)
+        if (response.disqualified) {
+          candidateData.disqualified = true;
+          candidateData.disqualifyReason = 'CT/ATE';
+          conversationComplete = true;
+          setInputEnabled(false);
+          // Still send the data for records
+          await submitCandidateData();
+          return;
+        }
+
+        // Check if conversation is complete
+        if (response.conversationComplete) {
+          conversationComplete = true;
+          await submitCandidateData();
+          setInputEnabled(false);
+          return;
+        }
+
+        // Offer chips if suggested
+        if (response.suggestedChips && response.suggestedChips.length > 0) {
+          addChips(response.suggestedChips);
+        }
+
+      } catch (err) {
+        hideTyping();
+        console.error('Chat error:', err);
+        addMessage("I'm having a little trouble connecting right now. Could you try again in a moment?", 'error');
+      }
+
+      isProcessing = false;
+      setInputEnabled(true);
+    }
+
+    // ============================================
+    // AI API CALL
+    // ============================================
+
+    async function callAI(messages) {
+      const response = await fetch(CONFIG.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messages,
+          systemPrompt: SYSTEM_PROMPT,
+          candidateData: candidateData,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      return await response.json();
+    }
+
+    // ============================================
+    // SUBMIT CANDIDATE DATA
+    // ============================================
+
+    async function submitCandidateData() {
+      try {
+        await fetch(CONFIG.apiUrl.replace('/chat', '/submit-candidate'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateData: candidateData,
+            conversationHistory: conversationHistory,
+            notifyEmail: CONFIG.notifyEmail,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to submit candidate data:', err);
+      }
+    }
+
+    // ============================================
+    // UTILITIES
+    // ============================================
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Auto-open in standalone mode
+    if (!CONFIG.widgetMode) {
+      document.getElementById('anura-chat-container').classList.add('standalone');
+      document.getElementById('anura-chat-launcher').style.display = 'none';
+      if (conversationHistory.length === 0) {
+        sendBotGreeting();
+      }
+    }
+  </script>
+</body>
+</html>
