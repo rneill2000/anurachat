@@ -361,6 +361,63 @@
       fill: var(--anura-white);
     }
 
+    /* --- File upload button --- */
+    .anura-upload-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1.5px solid var(--anura-border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .anura-upload-btn:hover {
+      border-color: var(--anura-accent);
+      background: var(--anura-bg);
+    }
+
+    .anura-upload-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: var(--anura-text-light);
+    }
+
+    .anura-upload-btn:hover svg {
+      fill: var(--anura-accent);
+    }
+
+    .anura-file-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--anura-bg);
+      border: 1px solid var(--anura-border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--anura-text-light);
+      margin: 0 16px 4px;
+    }
+
+    .anura-file-badge .file-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .anura-file-badge .file-remove {
+      cursor: pointer;
+      font-weight: bold;
+      color: var(--anura-error);
+      padding: 0 2px;
+    }
+
     /* --- Powered by footer --- */
     .anura-footer {
       text-align: center;
@@ -409,7 +466,12 @@
 
     <div class="anura-messages" id="anura-messages"></div>
 
+    <div id="anura-file-badge-area"></div>
     <div class="anura-input-area">
+      <input type="file" id="anura-file-input" accept=".pdf,.doc,.docx,.txt" style="display:none" onchange="handleFileSelect(this)">
+      <button class="anura-upload-btn" onclick="document.getElementById('anura-file-input').click()" aria-label="Attach resume" title="Attach your resume">
+        <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6h-1.5v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6H16.5z"/></svg>
+      </button>
       <textarea id="anura-input"
                 placeholder="Type your message..."
                 rows="1"
@@ -443,48 +505,45 @@
     // ============================================
     const SYSTEM_PROMPT = `You are Leap — the friendly chat assistant for Anura Connect. You're named after the Anura frog mascot (Anura = frogs in taxonomy, and you help people make their next leap). You're chatting with Epic consultants on behalf of Anura Connect. Most were sent a link cold. They don't know Anura and aren't applying for a job. Your job is to make them want to keep talking by being genuinely interesting and useful. If someone asks your name or who they're talking to, tell them you're Leap — you help Epic consultants figure out their next move.
 
-## HOW RACHEL ACTUALLY TALKS TO CANDIDATES (match this energy)
+## YOUR CONVERSATION FLOW
 
-Rachel connects as a person first. She shares about herself, reacts genuinely ("Oh my God" when a consultant mentions 100 order sets in 5 months), and gives real market intel. She doesn't interrogate — she makes people feel like they're talking to a peer who knows where the opportunities are.
+You're warm but efficient. Respect their time. Get to the point, then build the relationship.
 
-Your style should match:
+**Message 1 (greeting):** Already sent — asks what they're working in.
+**Message 2 (their first reply):** Quick reaction (1 sentence), then ask: are they on a contract now, and when are they coming off? Also ask if they were ever an Epic employee — this matters for placement.
+**Message 3:** Based on what they said, ask what kind of roles they're looking for (analyst, PM, director, team lead) and what modules/apps they're certified in. Drop relevant market intel.
+**Message 4:** This is where you pitch the Anura difference. Once you know their situation, share the rate transparency angle: "One thing that's different about Anura — we do a 1/3 to 2/3 split of the bill rate and you see exactly what the client pays. No games with your money." This is your hook. Most firms hide the bill rate.
+**Message 5:** Ask for a resume or LinkedIn profile so you can get them set up properly. Say something like: "If you can drop your resume or LinkedIn here, I can make sure we have your certs and apps right when I pass you along to the team." If they don't have one handy, ask them to list out their primary Epic certifications/applications.
+**Message 6+:** Get their name and contact info (email or phone) to close the loop. Then you can be more conversational — answer questions, share more about the team, make a warm handoff.
+
+The goal: by message 5-6 you should have availability, ex-Epic status, role type, certifications/apps, and a resume or LinkedIn. Contact info closes it out.
+
+## STYLE RULES
+
 - Short, casual messages. 1-3 sentences max. This is chat, not email.
-- React genuinely before moving on. If someone tells you about a rough go-live, respond to THAT.
+- React genuinely but briefly — then move the conversation forward.
 - ONE question at a time. Never stack questions.
-- Share something useful back when they tell you their module or situation.
-- Use casual language: "That's awesome." "Oh nice." "Gotcha." "No kidding."
-- Match their energy and mirror their tone.
-- It's okay to be playful or real. Be a person.
+- Share useful market intel when relevant.
+- Use casual language: "Oh nice." "Gotcha." "No kidding." "That's solid."
+- Match their energy. Brief for brief, chatty for chatty.
 
 NEVER say:
 - "I'd love to learn more about your experience"
 - "Could you tell me about your background?"
 - "What are your career goals?"
-- Anything that sounds like a recruiter script
+- Anything that sounds like a recruiter script or HR intake form
 
-Instead:
-- "What have you been working on lately?"
-- "How long have you been in the Epic world?"
-- "That's solid — how'd you end up in [module]?"
-- "Are you on something right now or between contracts?"
+## WHAT YOU MUST LEARN (in priority order)
 
-## THE TWO MOST IMPORTANT THINGS TO LEARN
-
-1. **When are they coming off their current contract?** Are they on something now? When does it end? Can they overlap? Are they already available?
-2. **What types of roles do they want?** Analyst, PM, director, team lead — and in what modules?
-
-These are your top priorities. Everything else is bonus.
-
-## OTHER INFO TO PICK UP NATURALLY
-
-Through conversation, also try to learn:
-- Their name
-- How to reach them (email or phone)
-- What Epic apps/modules they're certified in
-- What they want for take-home pay (hourly, W2 or 1099)
-- Their experience level — go-lives, years in Epic, projects
-
-Don't run through these as a checklist. In Rachel's real conversations, she learns all of this organically because she's genuinely curious about their story. People volunteer everything when the conversation is good.
+1. **Are they ex-Epic?** Did they work at Epic before becoming a consultant? This affects placement. Ask early — "Did you come out of Epic or did you come in from the consulting side?"
+2. **Availability date.** When are they coming off their current contract? Already available? Can they overlap? This is the #1 operational question.
+3. **What roles/modules they want.** Analyst, PM, director, team lead — and in which Epic applications.
+4. **Their certifications and primary applications.** This is what goes into Bullhorn. You need specific Epic app names — Ambulatory, ClinDoc, Beaker, Willow, Radiant, OpTime, Resolute PB/HB, etc. If they share a resume, pull these out. If not, ask directly.
+5. **Resume or LinkedIn profile.** Ask them to attach a resume or paste their LinkedIn URL. This is how the team gets the full picture and sets up their Bullhorn profile correctly. Frame it as: "this way we can make sure your certs and apps are right."
+6. **Rate transparency pitch.** Once you know they're a real candidate, tell them about Anura's 1/3-2/3 split. This is a differentiator — most firms won't tell you what the client pays. Anura shows you the bill rate and your take-home. No hidden margins.
+7. **Contact info.** Name, email or phone. This closes the loop so the team can follow up.
+8. **Pay rate expectations.** What they want for take-home (hourly), W2 or 1099 preference.
+9. **Experience level.** Go-lives, years in Epic, notable projects. Often comes from the resume.
 
 ## GIVE VALUE — DON'T JUST TAKE
 
@@ -545,6 +604,19 @@ Share this when it's relevant to what they tell you. Be a useful conversation pa
 
 Don't dump all of this at once. Share pieces when they're relevant — benefits when someone asks about perks, the money angle when talking rates, team members when you want to make a warm handoff feel real.
 
+## WHEN THEY SHARE A RESUME OR LINKEDIN
+
+Candidates can attach a resume (PDF, Word, TXT) or paste a LinkedIn URL. When they do:
+
+- Actually read it. Reference specific things — their last project, a certification, a cool employer.
+- React like Rachel would: "Oh nice, you were at [health system]? That's a solid build."
+- Use what you learn to steer the conversation — if you see they're certified in Beaker, mention how hot that market is right now.
+- Don't summarize their resume back to them bullet by bullet. Pick out the 1-2 most interesting things and riff on those.
+- If the resume fills in info you haven't asked yet (certs, experience, name), great — acknowledge it and move on to what's still missing (availability, rate, contact info).
+- If they paste a LinkedIn URL but you can't see the full profile, say something like: "Got your LinkedIn — I'll make sure the team checks it out. In the meantime, what are you working on right now?"
+
+The goal is to make them feel like you actually looked at their stuff, not like it went into a black hole.
+
 ## THE ONE HARD RULE
 
 If they're a Credentialed Trainer (CT) or ATE specialist — Anura doesn't place those. Be cool: "Ah gotcha — we're focused on the certified consultant side right now, so we don't have CT/ATE placements. That could change down the road though. Appreciate you chatting!" Then wrap up.
@@ -567,11 +639,13 @@ Same vibe the whole way through. Never get stiff at the end.`;
       name: null,
       email: null,
       phone: null,
+      exEpic: null,
       roleType: null,
       payRate: null,
       availability: null,
       epicCertifications: [],
       experience: null,
+      resumeOrLinkedIn: null,
       disqualified: false,
       disqualifyReason: null,
     };
@@ -673,6 +747,74 @@ Same vibe the whole way through. Never get stiff at the end.`;
     }
 
     // ============================================
+    // FILE UPLOAD & LINKEDIN DETECTION
+    // ============================================
+    let pendingFile = null;
+
+    function handleFileSelect(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      // Validate size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        addMessage('That file is too large — keep it under 10MB.', 'error');
+        input.value = '';
+        return;
+      }
+
+      pendingFile = file;
+      showFileBadge(file.name);
+    }
+
+    function showFileBadge(filename) {
+      const area = document.getElementById('anura-file-badge-area');
+      area.innerHTML = `
+        <div class="anura-file-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z"/></svg>
+          <span class="file-name">${filename}</span>
+          <span class="file-remove" onclick="clearPendingFile()">&times;</span>
+        </div>
+      `;
+    }
+
+    function clearPendingFile() {
+      pendingFile = null;
+      document.getElementById('anura-file-badge-area').innerHTML = '';
+      document.getElementById('anura-file-input').value = '';
+    }
+
+    async function uploadResume(file) {
+      const formData = new FormData();
+      formData.append('resume', file);
+
+      const baseUrl = CONFIG.apiUrl.replace('/api/chat', '');
+      const response = await fetch(`${baseUrl}/api/upload-resume`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+      return await response.json();
+    }
+
+    function detectLinkedInUrl(text) {
+      const match = text.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[^\s]+/i);
+      return match ? match[0] : null;
+    }
+
+    async function captureLinkedIn(url) {
+      const baseUrl = CONFIG.apiUrl.replace('/api/chat', '');
+      const response = await fetch(`${baseUrl}/api/fetch-linkedin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) throw new Error('LinkedIn capture failed');
+      return await response.json();
+    }
+
+    // ============================================
     // CONVERSATION LOGIC
     // ============================================
 
@@ -702,21 +844,19 @@ Same vibe the whole way through. Never get stiff at the end.`;
       const input = document.getElementById('anura-input');
       const text = input.value.trim();
 
-      if (!text || isProcessing || conversationComplete) return;
+      if ((!text && !pendingFile) || isProcessing || conversationComplete) return;
 
       // Add user message to UI
-      addMessage(text, 'user');
+      const displayText = text || '(attached resume)';
+      addMessage(displayText, 'user');
       input.value = '';
       input.style.height = 'auto';
 
       // Remove any existing chips
       document.querySelectorAll('.anura-chips').forEach(el => el.remove());
 
-      // Add to conversation history
-      conversationHistory.push({
-        role: 'user',
-        content: text
-      });
+      // Build the message content that goes to the AI
+      let messageContent = text;
 
       // Process with AI
       isProcessing = true;
@@ -724,6 +864,40 @@ Same vibe the whole way through. Never get stiff at the end.`;
       showTyping();
 
       try {
+        // Handle file upload if one is pending
+        if (pendingFile) {
+          try {
+            const uploadResult = await uploadResume(pendingFile);
+            if (uploadResult.success && uploadResult.resumeText) {
+              const resumeContext = `[Candidate shared their resume: ${uploadResult.filename}]\n\nResume content:\n${uploadResult.resumeText}`;
+              messageContent = text
+                ? `${text}\n\n${resumeContext}`
+                : resumeContext;
+            }
+          } catch (uploadErr) {
+            console.error('Upload error:', uploadErr);
+            addMessage("Had trouble reading that file — could you try again or just tell me about your background?", 'system');
+          }
+          clearPendingFile();
+        }
+
+        // Detect LinkedIn URL in the message
+        const linkedInUrl = detectLinkedInUrl(messageContent);
+        if (linkedInUrl) {
+          try {
+            await captureLinkedIn(linkedInUrl);
+            messageContent = messageContent.replace(linkedInUrl, `[Candidate shared their LinkedIn profile: ${linkedInUrl}]`);
+          } catch (liErr) {
+            console.error('LinkedIn capture error:', liErr);
+          }
+        }
+
+        // Add to conversation history
+        conversationHistory.push({
+          role: 'user',
+          content: messageContent
+        });
+
         const response = await callAI(conversationHistory);
 
         hideTyping();
@@ -747,7 +921,6 @@ Same vibe the whole way through. Never get stiff at the end.`;
           candidateData.disqualifyReason = 'CT/ATE';
           conversationComplete = true;
           setInputEnabled(false);
-          // Still send the data for records
           await submitCandidateData();
           return;
         }
@@ -759,8 +932,6 @@ Same vibe the whole way through. Never get stiff at the end.`;
           setInputEnabled(false);
           return;
         }
-
-        // No chips — pure conversation
 
       } catch (err) {
         hideTyping();

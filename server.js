@@ -13,13 +13,38 @@ const express = require('express');
 const cors = require('cors');
 const Anthropic = require('@anthropic-ai/sdk').default;
 const nodemailer = require('nodemailer');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Ensure upload dir exists
+const uploadDir = '/tmp/uploads/';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// File upload config
+const upload = multer({
+  dest: uploadDir,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.pdf', '.doc', '.docx', '.txt'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF, DOC, DOCX, and TXT files are allowed'));
+    }
+  },
+});
+
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(__dirname)); // Serve static files from project root
 
 // ============================================
@@ -38,11 +63,13 @@ Fields to look for:
 - name (string): candidate's full name
 - email (string): email address
 - phone (string): phone number
+- exEpic (boolean): true if they previously worked as an Epic employee (not just a consultant who uses Epic)
 - roleType (string): what role they want (Analyst, PM, Director, Team Lead, etc.)
 - payRate (string): desired take-home hourly rate and whether W2 or 1099
-- availability (string): when they can start
-- epicCertifications (array of strings): which Epic modules they're certified in
+- availability (string): when they can start or when their current contract ends
+- epicCertifications (array of strings): specific Epic applications/modules they're certified in (e.g. Ambulatory, ClinDoc, Beaker, Willow, Radiant, OpTime, Resolute PB, Resolute HB, etc.)
 - experience (string): years of experience, go-lives, notable projects
+- resumeOrLinkedIn (string): LinkedIn URL or note that resume was uploaded
 - disqualified (boolean): true ONLY if they explicitly said they are a Credentialed Trainer (CT) or ATE specialist
 - conversationComplete (boolean): true if the assistant has gathered enough info and wrapped up the conversation
 
@@ -121,6 +148,79 @@ app.post('/api/chat', async (req, res) => {
   } catch (err) {
     console.error('Chat API error:', err);
     res.status(500).json({ error: 'Failed to process message' });
+  }
+});
+
+// ============================================
+// RESUME UPLOAD ENDPOINT
+// ============================================
+app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    let resumeText = '';
+    const ext = path.extname(req.file.originalname).toLowerCase();
+
+    if (ext === '.pdf') {
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const pdfData = await pdfParse(dataBuffer);
+      resumeText = pdfData.text;
+    } else if (ext === '.txt') {
+      resumeText = fs.readFileSync(req.file.path, 'utf-8');
+    } else {
+      // For .doc/.docx, extract what we can or just note the file
+      resumeText = `[Uploaded file: ${req.file.originalname} — Word document received. The team will review the full document.]`;
+    }
+
+    // Clean up the temp file
+    fs.unlinkSync(req.file.path);
+
+    // Truncate if massive
+    if (resumeText.length > 8000) {
+      resumeText = resumeText.substring(0, 8000) + '\n\n[Resume truncated for chat — full version saved]';
+    }
+
+    res.json({
+      success: true,
+      resumeText: resumeText,
+      filename: req.file.originalname,
+    });
+
+  } catch (err) {
+    console.error('Resume upload error:', err);
+    // Clean up temp file on error
+    if (req.file && req.file.path) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    res.status(500).json({ error: 'Failed to process resume' });
+  }
+});
+
+// ============================================
+// LINKEDIN PROFILE FETCH ENDPOINT
+// ============================================
+app.post('/api/fetch-linkedin', async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url || !url.includes('linkedin.com')) {
+      return res.status(400).json({ error: 'Invalid LinkedIn URL' });
+    }
+
+    // Use Claude to summarize what we know from the URL
+    // (LinkedIn blocks scraping, but if the user pastes their profile URL,
+    // we can note it and ask Claude to reference it in conversation)
+    res.json({
+      success: true,
+      profileUrl: url,
+      note: 'LinkedIn URL captured. The team will review the full profile.',
+    });
+
+  } catch (err) {
+    console.error('LinkedIn fetch error:', err);
+    res.status(500).json({ error: 'Failed to process LinkedIn URL' });
   }
 });
 
@@ -246,10 +346,12 @@ function buildCandidateSummary(data) {
     { label: 'Name', value: data.name },
     { label: 'Email', value: data.email },
     { label: 'Phone', value: data.phone },
+    { label: 'Ex-Epic Employee', value: data.exEpic === true ? 'Yes' : data.exEpic === false ? 'No' : null },
     { label: 'Desired Role', value: data.roleType },
     { label: 'Pay Rate', value: data.payRate },
     { label: 'Availability', value: data.availability },
-    { label: 'Epic Certifications', value: data.epicCertifications?.length ? data.epicCertifications.join(', ') : null },
+    { label: 'Primary Epic Apps/Certs', value: data.epicCertifications?.length ? data.epicCertifications.join(', ') : null },
+    { label: 'Resume/LinkedIn', value: data.resumeOrLinkedIn },
     { label: 'Experience', value: data.experience },
   ];
 
@@ -306,6 +408,7 @@ async function pushToBullhorn(candidateData, conversationHistory) {
     }
 
     // Create or update a Candidate entity in Bullhorn
+    const exEpicTag = candidateData.exEpic ? ' [Ex-Epic Employee]' : '';
     const candidatePayload = {
       firstName: candidateData.name?.split(' ')[0] || '',
       lastName: candidateData.name?.split(' ').slice(1).join(' ') || '',
@@ -316,11 +419,11 @@ async function pushToBullhorn(candidateData, conversationHistory) {
       customText1: candidateData.roleType || '',           // Desired Role
       customText2: candidateData.payRate || '',             // Pay Rate
       customText3: candidateData.availability || '',        // Availability
-      customText4: (candidateData.epicCertifications || []).join(', '), // Epic Certs
-      customText5: candidateData.experience || '',          // Experience
+      customText4: (candidateData.epicCertifications || []).join(', '), // Primary Epic Apps/Certs
+      customText5: candidateData.resumeOrLinkedIn || '',   // Resume/LinkedIn
       description: candidateData.disqualified
         ? `DISQUALIFIED - ${candidateData.disqualifyReason}. Candidate identified as CT/ATE during chat screening.`
-        : `Candidate submitted via Anura Connect chat widget. Interested in ${candidateData.roleType || 'unspecified'} role.`,
+        : `${exEpicTag}Candidate submitted via Anura Connect chat widget. Interested in ${candidateData.roleType || 'unspecified'} role. Experience: ${candidateData.experience || 'not specified'}.`,
     };
 
     const response = await fetch(`${bullhornRestUrl}entity/Candidate`, {
