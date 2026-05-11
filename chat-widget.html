@@ -684,7 +684,7 @@ Same vibe the whole way through. Never get stiff at the end.`;
 
       hideTyping();
 
-      const greeting = "Hey! So the Epic market is kind of wild right now — some modules are super hot, others have cooled off a lot. What are you working in these days?";
+      const greeting = "Hey! I'm Leap. The Epic market has been shifting a ton lately — curious what you're working in right now?";
 
       addMessage(greeting, 'bot');
 
@@ -695,12 +695,7 @@ Same vibe the whole way through. Never get stiff at the end.`;
       });
 
       // Show quick-start chips
-      addChips([
-        "Inpatient",
-        "Ambulatory",
-        "Rev Cycle",
-        "Between contracts"
-      ]);
+      // No chips — let the conversation flow naturally
     }
 
     async function sendMessage() {
@@ -765,10 +760,7 @@ Same vibe the whole way through. Never get stiff at the end.`;
           return;
         }
 
-        // Offer chips if suggested
-        if (response.suggestedChips && response.suggestedChips.length > 0) {
-          addChips(response.suggestedChips);
-        }
+        // No chips — pure conversation
 
       } catch (err) {
         hideTyping();
