@@ -12,7 +12,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Anthropic = require('@anthropic-ai/sdk').default;
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
@@ -53,6 +53,11 @@ app.use(express.static(__dirname)); // Serve static files from project root
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// SendGrid setup
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
 
 // ============================================
 // DATA EXTRACTION PROMPT
@@ -270,20 +275,23 @@ app.post('/api/submit-candidate', async (req, res) => {
     console.log('Timestamp:', timestamp);
     console.log('Candidate:', JSON.stringify(candidateData, null, 2));
     console.log('Disqualified:', candidateData.disqualified ? 'YES - ' + candidateData.disqualifyReason : 'No');
-    console.log('Email configured:', !!process.env.SMTP_HOST);
+    console.log('Email configured:', !!process.env.SENDGRID_API_KEY);
     console.log('========================================\n');
 
-    // Send email notification
-    if (process.env.SMTP_HOST) {
+    // Send email notification via SendGrid
+    if (process.env.SENDGRID_API_KEY) {
       try {
         await sendEmailNotification(candidateData, conversationHistory, notifyEmail, timestamp);
-        console.log('Email sent successfully');
+        console.log('Email sent successfully via SendGrid');
       } catch (emailErr) {
         console.error('EMAIL SEND FAILED:', emailErr.message);
+        if (emailErr.response) {
+          console.error('SendGrid response:', emailErr.response.body);
+        }
         // Don't throw — still try Bullhorn
       }
     } else {
-      console.warn('SMTP not configured — skipping email. Set SMTP_HOST, SMTP_USER, SMTP_PASS in env vars.');
+      console.warn('SendGrid not configured — skipping email. Set SENDGRID_API_KEY in env vars.');
     }
 
     // Push to Bullhorn CRM
@@ -321,19 +329,9 @@ function generateChips(messages, extracted, existing) {
 }
 
 // ============================================
-// EMAIL NOTIFICATION
+// EMAIL NOTIFICATION (SendGrid)
 // ============================================
 async function sendEmailNotification(candidateData, conversationHistory, toEmail, timestamp) {
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-
   const isDisqualified = candidateData.disqualified;
 
   const subject = isDisqualified
@@ -350,7 +348,7 @@ async function sendEmailNotification(candidateData, conversationHistory, toEmail
 
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: #1a3a2a; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+      <div style="background: #0e2e47; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
         <h2 style="margin: 0;">Anura Connect - New Chat Submission</h2>
         <p style="margin: 4px 0 0; opacity: 0.8;">${new Date(timestamp).toLocaleString()}</p>
       </div>
@@ -361,25 +359,26 @@ async function sendEmailNotification(candidateData, conversationHistory, toEmail
         </div>
       ` : ''}
 
-      <div style="background: white; padding: 20px; border: 1px solid #e0e8e4;">
-        <h3 style="color: #1a3a2a; margin-top: 0;">Candidate Summary</h3>
+      <div style="background: white; padding: 20px; border: 1px solid #e0e4e8;">
+        <h3 style="color: #0e2e47; margin-top: 0;">Candidate Summary</h3>
         ${summary}
       </div>
 
-      <div style="background: #f7f9f8; padding: 20px; border: 1px solid #e0e8e4; border-top: 0; border-radius: 0 0 8px 8px;">
-        <h3 style="color: #1a3a2a; margin-top: 0;">Full Conversation</h3>
+      <div style="background: #f7f9f8; padding: 20px; border: 1px solid #e0e4e8; border-top: 0; border-radius: 0 0 8px 8px;">
+        <h3 style="color: #0e2e47; margin-top: 0;">Full Conversation</h3>
         <pre style="white-space: pre-wrap; font-size: 13px; line-height: 1.6;">${transcript}</pre>
       </div>
     </div>
   `;
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'chatbot@anuraconnect.com',
+  const msg = {
     to: toEmail,
+    from: process.env.SENDGRID_FROM || 'resumes@anuraconnect.com',
     subject: subject,
     html: html,
-  });
+  };
 
+  await sgMail.send(msg);
   console.log('Email notification sent to:', toEmail);
 }
 
@@ -513,35 +512,24 @@ async function pushToBullhorn(candidateData, conversationHistory) {
 // TEST EMAIL ENDPOINT (remove after confirming)
 // ============================================
 app.get('/api/test-email', async (req, res) => {
-  if (!process.env.SMTP_HOST) {
-    return res.json({ error: 'SMTP not configured' });
+  if (!process.env.SENDGRID_API_KEY) {
+    return res.json({ error: 'SendGrid not configured — set SENDGRID_API_KEY env var' });
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    // Verify connection first
-    await transporter.verify();
-
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'chatbot@anuraconnect.com',
+    const msg = {
       to: 'resumes@anuraconnect.com',
-      subject: '[Anura Chat] Test Email - SMTP Working',
+      from: process.env.SENDGRID_FROM || 'resumes@anuraconnect.com',
+      subject: '[Anura Chat] Test Email - SendGrid Working',
       html: '<p>If you see this, email notifications from the Leap chatbot are working correctly.</p><p>Sent: ' + new Date().toISOString() + '</p>',
-    });
+    };
 
+    await sgMail.send(msg);
     res.json({ success: true, message: 'Test email sent to resumes@anuraconnect.com' });
   } catch (err) {
     console.error('Test email failed:', err);
-    res.json({ success: false, error: err.message, code: err.code });
+    const detail = err.response ? err.response.body : err.message;
+    res.json({ success: false, error: detail });
   }
 });
 
@@ -553,7 +541,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     bullhornConfigured: !!process.env.BULLHORN_CLIENT_ID,
-    emailConfigured: !!process.env.SMTP_HOST,
+    emailConfigured: !!process.env.SENDGRID_API_KEY,
     aiConfigured: !!process.env.ANTHROPIC_API_KEY,
   });
 });
@@ -565,6 +553,6 @@ app.listen(PORT, () => {
   console.log(`\n🐸 Anura Connect Chat Server running on port ${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/api/health`);
   console.log(`   AI configured: ${!!process.env.ANTHROPIC_API_KEY}`);
-  console.log(`   Email configured: ${!!process.env.SMTP_HOST}`);
+  console.log(`   Email configured: ${!!process.env.SENDGRID_API_KEY}`);
   console.log(`   Bullhorn configured: ${!!process.env.BULLHORN_CLIENT_ID}\n`);
 });
