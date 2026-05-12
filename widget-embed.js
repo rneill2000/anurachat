@@ -299,6 +299,7 @@
   };
   var isProcessing = false;
   var conversationComplete = false;
+  var hasSubmitted = false;
   var pendingFile = null;
 
   // ============================================
@@ -501,15 +502,25 @@
 
       conversationHistory.push({ role: 'user', content: messageContent });
 
-      var resp = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: conversationHistory,
-          systemPrompt: SYSTEM_PROMPT,
-          candidateData: candidateData,
-        }),
-      });
+      // Add a timeout so users aren't stuck waiting forever
+      var controller = new AbortController();
+      var timeout = setTimeout(function () { controller.abort(); }, 30000);
+
+      var resp;
+      try {
+        resp = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            messages: conversationHistory,
+            systemPrompt: SYSTEM_PROMPT,
+            candidateData: candidateData,
+          }),
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!resp.ok) throw new Error('API error: ' + resp.status);
       var data = await resp.json();
@@ -525,27 +536,38 @@
         candidateData.disqualifyReason = 'CT/ATE';
         conversationComplete = true;
         setInputEnabled(false);
-        await submitCandidate();
+        submitCandidate(); // fire-and-forget
+        isProcessing = false;
         return;
       }
 
       if (data.conversationComplete) {
         conversationComplete = true;
-        await submitCandidate();
+        submitCandidate(); // fire-and-forget
         setInputEnabled(false);
+        isProcessing = false;
         return;
       }
     } catch (err) {
       hideTyping();
       console.error('Anura chat error:', err);
-      addMsg("I'm having a little trouble connecting right now. Could you try again in a moment?", 'error');
+      if (err.name === 'AbortError') {
+        addMsg("That took too long — could you try sending that again?", 'error');
+      } else {
+        addMsg("I'm having a little trouble connecting right now. Could you try again in a moment?", 'error');
+      }
+      // Remove the failed user message from history so they can retry
+      if (conversationHistory.length > 0 && conversationHistory[conversationHistory.length - 1].role === 'user') {
+        conversationHistory.pop();
+      }
     }
 
     isProcessing = false;
     setInputEnabled(true);
   }
 
-  async function submitCandidate() {
+  async function submitCandidate(trigger) {
+    hasSubmitted = true;
     try {
       await fetch(API_URL.replace('/chat', '/submit-candidate'), {
         method: 'POST',
@@ -555,12 +577,43 @@
           conversationHistory: conversationHistory,
           notifyEmail: NOTIFY_EMAIL,
           timestamp: new Date().toISOString(),
+          trigger: trigger || 'conversation_complete',
         }),
       });
     } catch (e) {
       console.error('Failed to submit candidate data:', e);
     }
   }
+
+  // Auto-submit when user leaves the page
+  function autoSubmitOnExit() {
+    if (hasSubmitted || conversationHistory.length < 3) return;
+
+    var hasAnyData = candidateData.name || candidateData.email || candidateData.phone ||
+                     (candidateData.epicCertifications && candidateData.epicCertifications.length > 0) ||
+                     candidateData.resumeOrLinkedIn;
+
+    if (!hasAnyData) return;
+    hasSubmitted = true;
+
+    var payload = JSON.stringify({
+      candidateData: candidateData,
+      conversationHistory: conversationHistory,
+      notifyEmail: NOTIFY_EMAIL,
+      timestamp: new Date().toISOString(),
+      trigger: 'page_exit',
+    });
+
+    navigator.sendBeacon(
+      API_URL.replace('/chat', '/submit-candidate'),
+      new Blob([payload], { type: 'application/json' })
+    );
+  }
+
+  window.addEventListener('beforeunload', autoSubmitOnExit);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') autoSubmitOnExit();
+  });
 
   function sleep(ms) {
     return new Promise(function (r) { setTimeout(r, ms); });

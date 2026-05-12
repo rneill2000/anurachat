@@ -90,8 +90,8 @@ app.post('/api/chat', async (req, res) => {
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const systemWithDate = `Today's date is ${today}.\n\n${systemPrompt}`;
 
-    // Call Claude for the conversational response
-    const chatResponse = await anthropic.messages.create({
+    // Run chat response and data extraction IN PARALLEL to cut latency
+    const chatPromise = anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
       system: systemWithDate,
@@ -101,21 +101,22 @@ app.post('/api/chat', async (req, res) => {
       })),
     });
 
-    const assistantMessage = chatResponse.content[0].text;
-
-    // Call Claude again to extract structured data from the conversation
-    const extractionMessages = [
-      ...messages,
-      { role: 'assistant', content: assistantMessage },
-      { role: 'user', content: EXTRACTION_PROMPT },
-    ];
-
-    const extractionResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    // Extraction runs on the conversation so far (without the new assistant reply)
+    // Uses Haiku for speed — it's just pulling structured data
+    const extractionPromise = anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       system: 'You are a data extraction assistant. Extract candidate information from conversations and return only valid JSON.',
-      messages: extractionMessages,
+      messages: [
+        ...messages,
+        { role: 'user', content: EXTRACTION_PROMPT },
+      ],
     });
+
+    // Wait for both to finish
+    const [chatResponse, extractionResponse] = await Promise.all([chatPromise, extractionPromise]);
+
+    const assistantMessage = chatResponse.content[0].text;
 
     let extractedData = {};
     let disqualified = false;
@@ -233,19 +234,29 @@ app.post('/api/fetch-linkedin', async (req, res) => {
 // ============================================
 app.post('/api/submit-candidate', async (req, res) => {
   try {
-    const { candidateData, conversationHistory, notifyEmail, timestamp } = req.body;
+    const { candidateData, conversationHistory, notifyEmail, timestamp, trigger } = req.body;
 
     console.log('\n========================================');
     console.log('NEW CANDIDATE SUBMISSION');
     console.log('========================================');
+    console.log('Trigger:', trigger || 'conversation_complete');
     console.log('Timestamp:', timestamp);
     console.log('Candidate:', JSON.stringify(candidateData, null, 2));
     console.log('Disqualified:', candidateData.disqualified ? 'YES - ' + candidateData.disqualifyReason : 'No');
+    console.log('Email configured:', !!process.env.SMTP_HOST);
     console.log('========================================\n');
 
     // Send email notification
     if (process.env.SMTP_HOST) {
-      await sendEmailNotification(candidateData, conversationHistory, notifyEmail, timestamp);
+      try {
+        await sendEmailNotification(candidateData, conversationHistory, notifyEmail, timestamp);
+        console.log('Email sent successfully');
+      } catch (emailErr) {
+        console.error('EMAIL SEND FAILED:', emailErr.message);
+        // Don't throw — still try Bullhorn
+      }
+    } else {
+      console.warn('SMTP not configured — skipping email. Set SMTP_HOST, SMTP_USER, SMTP_PASS in env vars.');
     }
 
     // Push to Bullhorn CRM
@@ -470,6 +481,42 @@ async function pushToBullhorn(candidateData, conversationHistory) {
     // Don't throw — we still want the email to go through
   }
 }
+
+// ============================================
+// TEST EMAIL ENDPOINT (remove after confirming)
+// ============================================
+app.get('/api/test-email', async (req, res) => {
+  if (!process.env.SMTP_HOST) {
+    return res.json({ error: 'SMTP not configured' });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    // Verify connection first
+    await transporter.verify();
+
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || 'chatbot@anuraconnect.com',
+      to: 'resumes@anuraconnect.com',
+      subject: '[Anura Chat] Test Email - SMTP Working',
+      html: '<p>If you see this, email notifications from the Leap chatbot are working correctly.</p><p>Sent: ' + new Date().toISOString() + '</p>',
+    });
+
+    res.json({ success: true, message: 'Test email sent to resumes@anuraconnect.com' });
+  } catch (err) {
+    console.error('Test email failed:', err);
+    res.json({ success: false, error: err.message, code: err.code });
+  }
+});
 
 // ============================================
 // HEALTH CHECK

@@ -790,6 +790,7 @@ Same vibe the whole way through. Never get stiff at the end.`;
     };
     let isProcessing = false;
     let conversationComplete = false;
+    let hasSubmitted = false;
 
     // ============================================
     // UI FUNCTIONS
@@ -1037,7 +1038,16 @@ Same vibe the whole way through. Never get stiff at the end.`;
           content: messageContent
         });
 
-        const response = await callAI(conversationHistory);
+        // Add a timeout so users aren't stuck waiting forever
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+        let response;
+        try {
+          response = await callAI(conversationHistory, controller.signal);
+        } finally {
+          clearTimeout(timeout);
+        }
 
         hideTyping();
 
@@ -1060,22 +1070,32 @@ Same vibe the whole way through. Never get stiff at the end.`;
           candidateData.disqualifyReason = 'CT/ATE';
           conversationComplete = true;
           setInputEnabled(false);
-          await submitCandidateData();
+          submitCandidateData(); // fire-and-forget, don't block UI
+          isProcessing = false;
           return;
         }
 
         // Check if conversation is complete
         if (response.conversationComplete) {
           conversationComplete = true;
-          await submitCandidateData();
+          submitCandidateData(); // fire-and-forget, don't block UI
           setInputEnabled(false);
+          isProcessing = false;
           return;
         }
 
       } catch (err) {
         hideTyping();
         console.error('Chat error:', err);
-        addMessage("I'm having a little trouble connecting right now. Could you try again in a moment?", 'error');
+        if (err.name === 'AbortError') {
+          addMessage("That took too long — could you try sending that again?", 'error');
+        } else {
+          addMessage("I'm having a little trouble connecting right now. Could you try again in a moment?", 'error');
+        }
+        // Remove the failed user message from history so they can retry
+        if (conversationHistory.length > 0 && conversationHistory[conversationHistory.length - 1].role === 'user') {
+          conversationHistory.pop();
+        }
       }
 
       isProcessing = false;
@@ -1086,8 +1106,8 @@ Same vibe the whole way through. Never get stiff at the end.`;
     // AI API CALL
     // ============================================
 
-    async function callAI(messages) {
-      const response = await fetch(CONFIG.apiUrl, {
+    async function callAI(messages, signal) {
+      const fetchOptions = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1095,7 +1115,10 @@ Same vibe the whole way through. Never get stiff at the end.`;
           systemPrompt: SYSTEM_PROMPT,
           candidateData: candidateData,
         }),
-      });
+      };
+      if (signal) fetchOptions.signal = signal;
+
+      const response = await fetch(CONFIG.apiUrl, fetchOptions);
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
@@ -1108,7 +1131,8 @@ Same vibe the whole way through. Never get stiff at the end.`;
     // SUBMIT CANDIDATE DATA
     // ============================================
 
-    async function submitCandidateData() {
+    async function submitCandidateData(trigger) {
+      hasSubmitted = true;
       try {
         await fetch(CONFIG.apiUrl.replace('/chat', '/submit-candidate'), {
           method: 'POST',
@@ -1118,6 +1142,7 @@ Same vibe the whole way through. Never get stiff at the end.`;
             conversationHistory: conversationHistory,
             notifyEmail: CONFIG.notifyEmail,
             timestamp: new Date().toISOString(),
+            trigger: trigger || 'conversation_complete',
           }),
         });
       } catch (err) {
@@ -1168,6 +1193,43 @@ Same vibe the whole way through. Never get stiff at the end.`;
       if (msgs && msgs.contains(e.target)) return; // allow scroll inside messages
       e.preventDefault();
     }, { passive: false });
+
+    // ============================================
+    // AUTO-SUBMIT: Send data when user leaves page
+    // ============================================
+    function autoSubmitOnExit() {
+      // Only submit if we have at least some useful data and haven't already submitted
+      if (hasSubmitted || conversationHistory.length < 3) return;
+
+      const hasAnyData = candidateData.name || candidateData.email || candidateData.phone ||
+                         (candidateData.epicCertifications && candidateData.epicCertifications.length > 0) ||
+                         candidateData.resumeOrLinkedIn;
+
+      if (!hasAnyData) return;
+
+      hasSubmitted = true;
+
+      // Use sendBeacon for reliability — it fires even when the tab is closing
+      const payload = JSON.stringify({
+        candidateData: candidateData,
+        conversationHistory: conversationHistory,
+        notifyEmail: CONFIG.notifyEmail,
+        timestamp: new Date().toISOString(),
+        trigger: 'page_exit',
+      });
+
+      navigator.sendBeacon(
+        CONFIG.apiUrl.replace('/chat', '/submit-candidate'),
+        new Blob([payload], { type: 'application/json' })
+      );
+    }
+
+    // Fire on page close/navigate away
+    window.addEventListener('beforeunload', autoSubmitOnExit);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') autoSubmitOnExit();
+    });
+
   </script>
 </body>
 </html>
