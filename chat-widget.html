@@ -1162,8 +1162,9 @@ Same vibe the whole way through. Never get stiff at the end.`;
       return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    // Auto-open in standalone mode
-    if (!CONFIG.widgetMode) {
+    // Auto-open in standalone mode (or if ?standalone is in the URL)
+    const isStandalone = !CONFIG.widgetMode || new URLSearchParams(window.location.search).has('standalone');
+    if (isStandalone) {
       document.getElementById('anura-chat-container').classList.add('standalone');
       document.getElementById('anura-chat-launcher').style.display = 'none';
       if (conversationHistory.length === 0) {
