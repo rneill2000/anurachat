@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Anura Connect - Epic Consultant Chat</title>
   <style>
     /* ============================================
@@ -171,11 +171,13 @@
     .anura-messages {
       flex: 1;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 12px;
       scroll-behavior: smooth;
+      overscroll-behavior: contain;
     }
 
     .anura-messages::-webkit-scrollbar {
@@ -433,15 +435,150 @@
       #anura-chat-container {
         width: 100vw;
         height: 100vh;
+        height: 100dvh; /* dynamic viewport height — accounts for mobile browser chrome */
         max-height: 100vh;
+        max-height: 100dvh;
         bottom: 0;
         right: 0;
         border-radius: 0;
+        animation: none;
+      }
+
+      #anura-chat-container.standalone {
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        max-height: none;
       }
 
       #anura-chat-launcher {
         bottom: 16px;
         right: 16px;
+        width: 56px;
+        height: 56px;
+      }
+
+      .anura-header {
+        padding: 14px 16px;
+        gap: 10px;
+      }
+
+      .anura-header-logo {
+        height: 30px;
+      }
+
+      .anura-header-title {
+        font-size: 15px;
+      }
+
+      .anura-header-subtitle {
+        font-size: 11px;
+      }
+
+      .anura-header-close {
+        font-size: 24px;
+        padding: 8px;
+      }
+
+      .anura-messages {
+        padding: 12px;
+      }
+
+      .anura-msg {
+        max-width: 88%;
+        font-size: 15px;
+        padding: 10px 14px;
+      }
+
+      .anura-input-area {
+        padding: 10px 12px;
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
+        gap: 6px;
+      }
+
+      .anura-input-area textarea {
+        font-size: 16px; /* prevents iOS zoom on focus */
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+
+      .anura-send-btn {
+        width: 44px;
+        height: 44px;
+      }
+
+      .anura-upload-btn {
+        width: 44px;
+        height: 44px;
+      }
+
+      .anura-file-badge {
+        margin: 0 12px 4px;
+      }
+
+      .anura-footer {
+        padding: 6px;
+        padding-bottom: max(6px, env(safe-area-inset-bottom));
+        font-size: 10px;
+      }
+
+      .anura-chip {
+        padding: 10px 14px;
+        font-size: 14px;
+      }
+
+      .anura-typing {
+        padding: 10px 14px;
+      }
+    }
+
+    /* Extra small phones */
+    @media (max-width: 360px) {
+      .anura-msg {
+        max-width: 92%;
+        font-size: 14px;
+      }
+
+      .anura-header-logo {
+        height: 26px;
+      }
+
+      .anura-header-title {
+        font-size: 14px;
+      }
+    }
+
+    /* Landscape mobile */
+    @media (max-height: 500px) and (orientation: landscape) {
+      #anura-chat-container {
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        bottom: 0;
+        right: 0;
+        border-radius: 0;
+      }
+
+      .anura-header {
+        padding: 8px 16px;
+      }
+
+      .anura-header-logo {
+        height: 24px;
+      }
+
+      .anura-messages {
+        padding: 8px 12px;
+      }
+
+      .anura-msg {
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+
+      .anura-footer {
+        padding: 4px;
+        font-size: 9px;
       }
     }
   </style>
@@ -503,15 +640,15 @@
     // ============================================
     // SYSTEM PROMPT - The brain of your agent
     // ============================================
-    const SYSTEM_PROMPT = `You are Leap — the chat assistant for Anura Connect, named after the Anura frog mascot. You're chatting with Epic consultants who were sent this link by someone on the Anura team. This is COLD OUTREACH — they didn't come to you, you came to them. They probably don't know Anura and aren't actively looking. Your job is to hook them fast with something they care about (what the market looks like for their modules, rate transparency, what they could be making) and get their info before they bounce. If someone asks your name, tell them you're Leap.
+    const SYSTEM_PROMPT = `You are Leap — the chat assistant for Anura Connect, named after the Anura frog mascot. You're chatting with Epic consultants who are visiting the Anura Connect website. Some found the site on their own and are actively exploring, others were sent a link by someone on the Anura team. You don't know which — so don't assume either way. Your job is to hook them fast with something they care about (what the market looks like for their modules, rate transparency, what they could be making) and get their info before they bounce. If someone asks your name, tell them you're Leap.
 
 ## YOUR CONVERSATION FLOW
 
 You're warm but efficient. Respect their time. Get to the point, then build the relationship.
 
-Remember: they didn't seek you out. Someone on the team sent them a link. You have a small window before they close the tab. Every message needs to either give them something valuable or move toward getting their info. Don't waste messages on fluff.
+They might be actively looking or just casually browsing. Either way, you have a small window. Every message needs to either give them something valuable or move toward getting their info. Don't waste messages on fluff.
 
-**Message 1 (greeting):** Already sent. It acknowledges someone sent them the link, drops the rate transparency hook, and asks what Epic apps they're in. Leads with value AND asks for info.
+**Message 1 (greeting):** Already sent. It introduces you, drops the rate transparency hook, and asks what Epic apps they're in. Leads with value AND asks for info.
 **Message 2 (they respond with their apps/modules):** Give them something they can't get elsewhere — what the market looks like for their specific modules right now. Be specific: "Beaker is on fire right now" or "Rev cycle is always steady." Then ask: are they on a contract right now or between gigs? When are they available?
 **Message 3:** Ask if they came out of Epic or the consulting side, and what kind of role they want next (analyst, PM, director, team lead). Keep giving value — relate their situation to what Anura is seeing.
 **Message 4:** Ask for a resume or LinkedIn. Be direct: "If you drop your resume or LinkedIn here I can get your profile set up with the right apps and certs — that way when something hits for your modules, we can move fast." If they don't have one handy, ask them to list their primary certifications.
@@ -828,7 +965,7 @@ Same vibe the whole way through. Never get stiff at the end.`;
 
       hideTyping();
 
-      const greeting = "Hey! I'm Leap — someone from the Anura Connect team sent you this because they think you could be a great fit. We're one of the few independent Epic firms left, and we do things differently: you see the full bill rate upfront, not just your cut. Quick question — what Epic apps are you certified in? I can tell you exactly what we're seeing in the market for your modules.";
+      const greeting = "Hey! I'm Leap — Anura Connect's Epic career guide. Whether you're exploring what's out there or someone on our team pointed you this way, I can help. We're one of the few independent Epic firms left, and we do things differently — you see the full bill rate upfront, not just your cut. What Epic apps are you working in? I can tell you what we're seeing in the market for your modules.";
 
       addMessage(greeting, 'bot');
 
@@ -1004,6 +1141,33 @@ Same vibe the whole way through. Never get stiff at the end.`;
         sendBotGreeting();
       }
     }
+
+    // Mobile keyboard handling — scroll input into view and keep chat visible
+    if ('visualViewport' in window) {
+      window.visualViewport.addEventListener('resize', () => {
+        const container = document.getElementById('anura-chat-container');
+        if (container && container.classList.contains('open')) {
+          container.style.height = window.visualViewport.height + 'px';
+          // Scroll messages to bottom when keyboard opens
+          const msgs = document.getElementById('anura-messages');
+          if (msgs) msgs.scrollTop = msgs.scrollHeight;
+        }
+      });
+
+      window.visualViewport.addEventListener('scroll', () => {
+        const container = document.getElementById('anura-chat-container');
+        if (container && container.classList.contains('open')) {
+          container.style.bottom = '0px';
+        }
+      });
+    }
+
+    // Prevent pull-to-refresh on mobile inside the chat
+    document.getElementById('anura-chat-container')?.addEventListener('touchmove', (e) => {
+      const msgs = document.getElementById('anura-messages');
+      if (msgs && msgs.contains(e.target)) return; // allow scroll inside messages
+      e.preventDefault();
+    }, { passive: false });
   </script>
 </body>
 </html>
