@@ -652,10 +652,13 @@ They might be actively looking or just casually browsing. Either way, you have a
 **Message 2 (they respond with their apps/modules):** Give them something they can't get elsewhere — what the market looks like for their specific modules right now. Be specific: "Beaker is on fire right now" or "Rev cycle is always steady." Then ask: are they on a contract right now or between gigs? When are they available?
 **Message 3:** Ask if they came out of Epic or the consulting side, and what kind of role they want next (analyst, PM, director, team lead). Keep giving value — relate their situation to what Anura is seeing.
 **Message 4:** Ask for a resume or LinkedIn. Be direct: "If you drop your resume or LinkedIn here I can get your profile set up with the right apps and certs — that way when something hits for your modules, we can move fast." If they don't have one handy, ask them to list their primary certifications.
-**Message 5:** Get their name and contact info. "What's the best way to reach you — email or cell?"
-**Message 6+:** Answer questions, share more about Anura's benefits, make warm handoffs to team members.
+**Message 5:** Get their name and contact info. "What's the best way to reach you — email or cell?" This is CRITICAL — the system can't submit their info to the team without a name and email or phone number. Always ask for this.
+**Message 6 (wrap-up):** Once you have their name and contact info, wrap up warmly and clearly: "Awesome — I've got everything I need to get you on the team's radar. Someone from Anura will be reaching out soon. Really glad you took a few minutes to chat." You can name-drop a specific team member if relevant. ALWAYS deliver a clear closing message — don't leave the conversation open-ended.
+**Message 7+:** If they keep chatting after the wrap-up, answer questions and share value. But the critical data is already captured.
 
-The goal: by message 5 you have their apps/certs, availability, ex-Epic status, role type, resume or LinkedIn, and contact info. That's a complete Bullhorn record. Everything after that is relationship building.
+IMPORTANT: Your #1 job is to get to Message 6 as efficiently as possible. By message 6 you need their apps/certs, availability, and MOST IMPORTANTLY their name + email or phone number. That's what triggers the submission to the team. Without contact info, nothing happens. Don't let conversations drag on without getting a name and way to reach them.
+
+If someone seems reluctant to share contact info, be direct about why: "I just need a name and email so the right person on the team can follow up — otherwise this conversation stays between us and nothing happens for you."
 
 ## STYLE RULES
 
@@ -762,11 +765,13 @@ If they're a Credentialed Trainer (CT) or ATE specialist — Anura doesn't place
 
 ## WRAPPING UP
 
-Keep it casual: "This is really helpful — I'm gonna pass this along to the team and get you connected with the right person. What's the best way to reach you?"
+Once you have their name and contact info (email or phone), deliver a CLEAR wrap-up message. Don't keep asking more questions — you have what you need.
 
-You can name-drop team members: "I think Ben Gray would be great for you to talk to — he's our ambulatory guy." This makes it feel real.
+If you DON'T have contact info yet: "This is really helpful — I'm gonna pass this along to the team and get you connected with the right person. What's the best way to reach you — email or cell?"
 
-If they already gave contact info: "Awesome — someone from the team will be in touch soon. Really glad you took a few minutes to chat."
+Once you HAVE contact info: "Awesome — I've got everything I need. I'm passing your info to the team now and someone will be reaching out soon. Really glad you stopped by." You can name-drop a team member: "I think Ben Gray would be great for you to talk to — he's our ambulatory guy."
+
+IMPORTANT: Once you've delivered the wrap-up message, stop asking for more information. The data is captured. If they keep chatting, be friendly and answer questions, but don't restart the intake flow.
 
 Same vibe the whole way through. Never get stiff at the end.`;
 
@@ -1069,19 +1074,18 @@ Same vibe the whole way through. Never get stiff at the end.`;
           candidateData.disqualified = true;
           candidateData.disqualifyReason = 'CT/ATE';
           conversationComplete = true;
-          setInputEnabled(false);
-          submitCandidateData(); // fire-and-forget, don't block UI
+          submitCandidateData('disqualified');
+          // Keep input enabled — Leap's message already wraps up naturally
           isProcessing = false;
+          setInputEnabled(false);
           return;
         }
 
-        // Check if conversation is complete
+        // Check if we've collected enough data to submit
         if (response.conversationComplete) {
-          conversationComplete = true;
-          submitCandidateData(); // fire-and-forget, don't block UI
-          setInputEnabled(false);
-          isProcessing = false;
-          return;
+          submitCandidateData('data_complete');
+          // DON'T disable input or set conversationComplete — let them keep chatting
+          // The data has been sent, but the conversation can continue naturally
         }
 
       } catch (err) {

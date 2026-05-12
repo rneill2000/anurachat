@@ -71,9 +71,18 @@ Fields to look for:
 - experience (string): years of experience, go-lives, notable projects
 - resumeOrLinkedIn (string): LinkedIn URL or note that resume was uploaded
 - disqualified (boolean): true ONLY if they explicitly said they are a Credentialed Trainer (CT) or ATE specialist
-- conversationComplete (boolean): true if the assistant has gathered enough info and wrapped up the conversation
 
 Return ONLY valid JSON, no markdown formatting, no explanation.`;
+
+// Determine if we have enough data to submit
+function hasEnoughData(data) {
+  const hasContact = !!(data.name && (data.email || data.phone));
+  const hasCerts = !!(data.epicCertifications && data.epicCertifications.length > 0);
+  const hasResume = !!data.resumeOrLinkedIn;
+  const hasAvailability = !!data.availability;
+  // Need contact info PLUS at least one of: certs, resume, or availability
+  return hasContact && (hasCerts || hasResume || hasAvailability);
+}
 
 // ============================================
 // CHAT ENDPOINT
@@ -120,7 +129,6 @@ app.post('/api/chat', async (req, res) => {
 
     let extractedData = {};
     let disqualified = false;
-    let conversationComplete = false;
 
     try {
       const rawText = extractionResponse.content[0].text.trim();
@@ -128,12 +136,31 @@ app.post('/api/chat', async (req, res) => {
       const cleaned = rawText.replace(/^```json?\n?/, '').replace(/\n?```$/, '');
       extractedData = JSON.parse(cleaned);
       disqualified = extractedData.disqualified === true;
-      conversationComplete = extractedData.conversationComplete === true;
-      // Remove meta fields from the data object
+      // Remove meta field from the data object
       delete extractedData.disqualified;
-      delete extractedData.conversationComplete;
     } catch (parseErr) {
       console.warn('Could not parse extraction response:', parseErr.message);
+    }
+
+    // Merge extracted data with what we already know from the client
+    const mergedData = { ...candidateData, ...extractedData };
+    // Merge cert arrays instead of overwriting
+    if (candidateData.epicCertifications?.length && extractedData.epicCertifications?.length) {
+      mergedData.epicCertifications = [...new Set([...candidateData.epicCertifications, ...extractedData.epicCertifications])];
+    }
+
+    // Deterministic completion: do we have enough to create a Bullhorn record?
+    const conversationComplete = !disqualified && hasEnoughData(mergedData);
+
+    if (conversationComplete) {
+      console.log('Conversation complete — enough data collected:', {
+        name: mergedData.name,
+        email: mergedData.email,
+        phone: mergedData.phone,
+        certs: mergedData.epicCertifications,
+        resume: mergedData.resumeOrLinkedIn,
+        availability: mergedData.availability,
+      });
     }
 
     // Suggest quick-reply chips based on conversation context
