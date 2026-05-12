@@ -86,11 +86,15 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'No messages provided' });
     }
 
+    // Inject current date so the model knows what year it is
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const systemWithDate = `Today's date is ${today}.\n\n${systemPrompt}`;
+
     // Call Claude for the conversational response
     const chatResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
-      system: systemPrompt,
+      system: systemWithDate,
       messages: messages.map(m => ({
         role: m.role,
         content: m.content,
